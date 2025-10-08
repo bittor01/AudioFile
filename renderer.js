@@ -51,15 +51,16 @@ runBtn.addEventListener('click', () => {
 });
 
 window.electronAPI.onProgressUpdate((data) => {
+    // Use aliasing to avoid variable shadowing with the DOM element constants
     const {
         statusMessage,
         overallProgress,
         overallETR,
-        overallCount,
+        overallCount: overallCountData,
         overallTotal,
         taskProgress,
         taskETR,
-        taskCount,
+        taskCount: taskCountData,
         taskTotal,
         taskName
     } = data;
@@ -72,11 +73,11 @@ window.electronAPI.onProgressUpdate((data) => {
 
     if (overallProgress !== undefined) {
         overallProgress.value = overallProgress;
-        overallCount.innerText = `${overallCount} of ${overallTotal}`;
+        overallCount.innerText = `${overallCountData} of ${overallTotal}`;
     }
     if (taskProgress !== undefined) {
         taskProgress.value = taskProgress;
-        taskCount.innerText = `${taskCount} of ${taskTotal}`;
+        taskCount.innerText = `${taskCountData} of ${taskTotal}`;
     }
     if (overallETR !== undefined) {
         overallEtr.innerText = overallETR;
