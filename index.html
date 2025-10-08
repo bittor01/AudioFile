@@ -9,16 +9,17 @@
     <h1>Audio File Tools</h1>
     <div id="content">
         <p>Select a folder to process:</p>
-        <button id="select-dir">Select Directory</button>
         <p id="selected-dir"></p>
 
-        <div id="options">
-            <label><input type="checkbox" id="convert-to-wav" checked> Convert to .wav</label><br>
-            <label><input type="checkbox" id="normalize-wav" checked> Normalize .wav volume</label><br>
-            <label><input type="checkbox" id="update-lnk" checked> Update .lnk shortcuts</label><br>
+        <div id="main-controls">
+            <button id="select-dir">Select Directory</button>
+            <button id="run-tools">Run</button>
+            <div id="options">
+                <label><input type="checkbox" id="convert-to-wav" checked> Convert to .wav</label>
+                <label><input type="checkbox" id="normalize-wav" checked> Normalize .wav volume</label>
+                <label><input type="checkbox" id="update-lnk" checked> Update .lnk shortcuts</label>
+            </div>
         </div>
-
-        <button id="run-tools">Run</button>
 
         <div id="status">
             <h2>Progress</h2>
