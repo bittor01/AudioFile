@@ -6,6 +6,7 @@ const statusOutput = document.getElementById('status-output');
 // Progress elements
 const overallProgress = document.getElementById('overall-progress');
 const overallCount = document.getElementById('overall-count');
+const overallProgressLabel = document.querySelector('label[for="overall-progress"]');
 const taskProgress = document.getElementById('task-progress');
 const taskEtr = document.getElementById('task-etr');
 const taskCount = document.getElementById('task-count');
@@ -47,7 +48,8 @@ runBtn.addEventListener('click', () => {
     taskEtr.innerText = '';
     overallCount.innerText = '';
     taskCount.innerText = '';
-    taskProgressLabel.innerText = 'Task Progress:';
+    overallProgressLabel.innerText = 'Overall Progress';
+    taskProgressLabel.innerText = 'Task Progress';
 
     window.electronAPI.runTools(options);
 });
@@ -74,25 +76,29 @@ window.electronAPI.onProgressUpdate((data) => {
         statusOutput.textContent = logMessages.join('\n');
     }
 
-    if (overallProgressData !== undefined && overallTotal !== undefined) {
+    if (overallProgressData !== undefined) {
         overallProgress.value = overallProgressData;
-        overallCount.innerText = `Task ${overallCountData || 0} of ${overallTotal}`;
     }
-    if (taskProgressData !== undefined && taskTotal !== undefined) {
+    if (overallCountData !== undefined && overallTotal !== undefined) {
+        overallCount.innerText = `${overallCountData} of ${overallTotal}`;
+    }
+    if (taskProgressData !== undefined) {
         taskProgress.value = taskProgressData;
-        taskCount.innerText = `${taskCountData || 0} of ${taskTotal}`;
+    }
+    if (taskCountData !== undefined && taskTotal !== undefined) {
+        taskCount.innerText = `${taskCountData} of ${taskTotal}`;
     }
     if (taskETR !== undefined) {
         taskEtr.innerText = taskETR;
     }
     if (taskName) {
-        const overallText = overallCount.innerText ? `(${overallCount.innerText})` : '';
-        taskProgressLabel.innerText = `Task Progress: ${taskName} ${overallText}`;
+        overallProgressLabel.innerText = `Overall Progress: ${taskName} (Task ${overallCountData || 0} of ${overallTotal || 0})`;
     }
 });
 
 window.electronAPI.onProcessingFinished(() => {
     runBtn.disabled = false;
     runBtn.innerText = 'Run';
-    taskProgressLabel.innerText = 'Task Progress: Done';
+    overallProgressLabel.innerText = 'Overall Progress: Done';
+    taskProgressLabel.innerText = 'Task Progress';
 });
