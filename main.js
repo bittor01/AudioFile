@@ -10,7 +10,7 @@ let win;
 function createWindow() {
   win = new BrowserWindow({
     width: 800,
-    height: 800,
+    height: 850,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -141,8 +141,12 @@ ipcMain.on('run-tools', async (event, options) => {
                         statusMessage: `${path.basename(file)}: ${statusMessage}`,
                         overallProgress: (overallFilesProcessed / totalFilesToProcess) * 100,
                         overallETR,
+                        overallCount: overallFilesProcessed,
+                        overallTotal: totalFilesToProcess,
                         taskProgress: (taskFilesProcessed / task.files.length) * 100,
                         taskETR,
+                        taskCount: taskFilesProcessed,
+                        taskTotal: task.files.length,
                         taskName: task.name
                     });
                 } catch (error) {

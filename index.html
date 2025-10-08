@@ -27,12 +27,18 @@
             <div id="progress-section">
                 <div class="progress-container">
                     <label for="overall-progress">Overall Progress:</label>
-                    <progress id="overall-progress" value="0" max="100"></progress>
+                    <div class="progress-bar-wrapper">
+                        <progress id="overall-progress" value="0" max="100"></progress>
+                        <span id="overall-count"></span>
+                    </div>
                     <span id="overall-etr"></span>
                 </div>
                 <div class="progress-container">
                     <label for="task-progress">Task Progress:</label>
-                    <progress id="task-progress" value="0" max="100"></progress>
+                    <div class="progress-bar-wrapper">
+                        <progress id="task-progress" value="0" max="100"></progress>
+                        <span id="task-count"></span>
+                    </div>
                     <span id="task-etr"></span>
                 </div>
             </div>

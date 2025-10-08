@@ -6,8 +6,10 @@ const statusOutput = document.getElementById('status-output');
 // Progress elements
 const overallProgress = document.getElementById('overall-progress');
 const overallEtr = document.getElementById('overall-etr');
+const overallCount = document.getElementById('overall-count');
 const taskProgress = document.getElementById('task-progress');
 const taskEtr = document.getElementById('task-etr');
+const taskCount = document.getElementById('task-count');
 const taskProgressLabel = document.querySelector('label[for="task-progress"]');
 
 selectDirBtn.addEventListener('click', async () => {
@@ -41,6 +43,8 @@ runBtn.addEventListener('click', () => {
     taskProgress.value = 0;
     overallEtr.innerText = '';
     taskEtr.innerText = '';
+    overallCount.innerText = '';
+    taskCount.innerText = '';
     taskProgressLabel.innerText = 'Task Progress:';
 
     window.electronAPI.runTools(options);
@@ -51,23 +55,28 @@ window.electronAPI.onProgressUpdate((data) => {
         statusMessage,
         overallProgress,
         overallETR,
+        overallCount,
+        overallTotal,
         taskProgress,
         taskETR,
+        taskCount,
+        taskTotal,
         taskName
     } = data;
 
     if (statusMessage) {
         const timestamp = new Date().toLocaleTimeString();
         statusOutput.textContent += `[${timestamp}] ${statusMessage}\n`;
-        // Auto-scroll to the bottom
         statusOutput.scrollTop = statusOutput.scrollHeight;
     }
 
     if (overallProgress !== undefined) {
         overallProgress.value = overallProgress;
+        overallCount.innerText = `${overallCount} of ${overallTotal}`;
     }
     if (taskProgress !== undefined) {
         taskProgress.value = taskProgress;
+        taskCount.innerText = `${taskCount} of ${taskTotal}`;
     }
     if (overallETR !== undefined) {
         overallEtr.innerText = overallETR;
@@ -79,7 +88,6 @@ window.electronAPI.onProgressUpdate((data) => {
         taskProgressLabel.innerText = `Task Progress (${taskName}):`;
     }
 
-    // Re-enable button if processing is complete
     if (overallProgress >= 100 || statusMessage?.includes('complete') || statusMessage?.includes('Aborting') || statusMessage?.includes('No files to process')) {
         runBtn.disabled = false;
         runBtn.innerText = 'Run';
