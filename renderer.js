@@ -5,12 +5,14 @@ const statusOutput = document.getElementById('status-output');
 
 // Progress elements
 const overallProgress = document.getElementById('overall-progress');
-const overallEtr = document.getElementById('overall-etr');
 const overallCount = document.getElementById('overall-count');
 const taskProgress = document.getElementById('task-progress');
 const taskEtr = document.getElementById('task-etr');
 const taskCount = document.getElementById('task-count');
 const taskProgressLabel = document.querySelector('label[for="task-progress"]');
+
+let logMessages = [];
+const MAX_LOG_LINES = 8;
 
 selectDirBtn.addEventListener('click', async () => {
     const path = await window.electronAPI.selectDir();
@@ -38,10 +40,10 @@ runBtn.addEventListener('click', () => {
     runBtn.innerText = 'Processing...';
 
     // Reset UI
+    logMessages = [];
     statusOutput.textContent = '';
     overallProgress.value = 0;
     taskProgress.value = 0;
-    overallEtr.innerText = '';
     taskEtr.innerText = '';
     overallCount.innerText = '';
     taskCount.innerText = '';
@@ -51,11 +53,9 @@ runBtn.addEventListener('click', () => {
 });
 
 window.electronAPI.onProgressUpdate((data) => {
-    // Use aliasing to avoid variable shadowing with the DOM element constants
     const {
         statusMessage,
         overallProgress,
-        overallETR,
         overallCount: overallCountData,
         overallTotal,
         taskProgress,
@@ -67,30 +67,32 @@ window.electronAPI.onProgressUpdate((data) => {
 
     if (statusMessage) {
         const timestamp = new Date().toLocaleTimeString();
-        statusOutput.textContent += `[${timestamp}] ${statusMessage}\n`;
-        statusOutput.scrollTop = statusOutput.scrollHeight;
+        logMessages.push(`[${timestamp}] ${statusMessage}`);
+        if (logMessages.length > MAX_LOG_LINES) {
+            logMessages.shift();
+        }
+        statusOutput.textContent = logMessages.join('\n');
     }
 
     if (overallProgress !== undefined) {
         overallProgress.value = overallProgress;
-        overallCount.innerText = `${overallCountData} of ${overallTotal}`;
+        overallCount.innerText = `Task ${overallCountData} of ${overallTotal}`;
     }
     if (taskProgress !== undefined) {
         taskProgress.value = taskProgress;
         taskCount.innerText = `${taskCountData} of ${taskTotal}`;
     }
-    if (overallETR !== undefined) {
-        overallEtr.innerText = overallETR;
-    }
     if (taskETR !== undefined) {
         taskEtr.innerText = taskETR;
     }
     if (taskName) {
-        taskProgressLabel.innerText = `Task Progress (${taskName}):`;
+        const overallText = overallCount.innerText ? `(${overallCount.innerText})` : '';
+        taskProgressLabel.innerText = `Task Progress: ${taskName} ${overallText}`;
     }
 
     if (overallProgress >= 100 || statusMessage?.includes('complete') || statusMessage?.includes('Aborting') || statusMessage?.includes('No files to process')) {
         runBtn.disabled = false;
         runBtn.innerText = 'Run';
+        taskProgressLabel.innerText = 'Task Progress: Done';
     }
 });

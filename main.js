@@ -107,54 +107,62 @@ ipcMain.on('run-tools', async (event, options) => {
             if (files.length > 0) tasks.push({ name: 'Update .lnk shortcuts', files: [directory], action: runUpdateLnkScript });
         }
 
-        const totalFilesToProcess = tasks.reduce((sum, task) => sum + task.files.length, 0);
-        if (totalFilesToProcess === 0) {
+        const totalTasks = tasks.length;
+        if (totalTasks === 0) {
             sendProgress({ statusMessage: 'No files to process.' });
             return;
         }
 
-        let overallFilesProcessed = 0;
-        const overallStart = Date.now();
-        const overallTimes = [];
+        let tasksCompleted = 0;
 
         for (const task of tasks) {
-            const taskStart = Date.now();
             const taskTimes = [];
             let taskFilesProcessed = 0;
+
+            // Initial progress update for the current task
+            sendProgress({
+                overallProgress: (tasksCompleted / totalTasks) * 100,
+                overallCount: tasksCompleted,
+                overallTotal: totalTasks,
+                taskName: task.name,
+                taskProgress: 0,
+                taskCount: 0,
+                taskTotal: task.files.length,
+            });
 
             for (const file of task.files) {
                 const fileStart = Date.now();
                 try {
                     const statusMessage = await task.action(file, directory, task.extra);
+                    taskFilesProcessed++;
                     const fileEnd = Date.now();
                     taskTimes.push(fileEnd - fileStart);
-                    overallTimes.push(fileEnd - fileStart);
-                    taskFilesProcessed++;
-                    overallFilesProcessed++;
 
                     const avgTaskTime = taskTimes.reduce((a, b) => a + b, 0) / taskTimes.length;
                     const taskETR = formatETR((task.files.length - taskFilesProcessed) * avgTaskTime);
-                    const avgOverallTime = overallTimes.reduce((a, b) => a + b, 0) / overallTimes.length;
-                    const overallETR = formatETR((totalFilesToProcess - overallFilesProcessed) * avgOverallTime);
 
                     sendProgress({
                         statusMessage: `${path.basename(file)}: ${statusMessage}`,
-                        overallProgress: (overallFilesProcessed / totalFilesToProcess) * 100,
-                        overallETR,
-                        overallCount: overallFilesProcessed,
-                        overallTotal: totalFilesToProcess,
                         taskProgress: (taskFilesProcessed / task.files.length) * 100,
                         taskETR,
                         taskCount: taskFilesProcessed,
                         taskTotal: task.files.length,
-                        taskName: task.name
                     });
                 } catch (error) {
                     sendProgress({ statusMessage: `ERROR processing ${path.basename(file)}: ${error.message}` });
                 }
             }
+            tasksCompleted++;
         }
-        sendProgress({ statusMessage: 'All tasks complete.', overallProgress: 100, taskProgress: 100, taskName: 'Done' });
+        sendProgress({
+            statusMessage: 'All tasks complete.',
+            overallProgress: 100,
+            overallCount: totalTasks,
+            overallTotal: totalTasks,
+            taskProgress: 100,
+            taskName: 'Done',
+            taskETR: '',
+        });
     } catch (error) {
         sendProgress({ statusMessage: `A critical error occurred: ${error.message}` });
     }
