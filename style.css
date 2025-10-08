@@ -1,0 +1,45 @@
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+    font-family: sans-serif;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #ffffff;
+}
+
+button {
+    background-color: #333333;
+    color: #ffffff;
+    border: 1px solid #555555;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+button:hover {
+    background-color: #444444;
+}
+
+#content {
+    max-width: 700px;
+    margin: auto;
+}
+
+#options {
+    margin: 20px 0;
+}
+
+#status {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #333333;
+    background-color: #1e1e1e;
+    border-radius: 5px;
+}
+
+#status-output {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
