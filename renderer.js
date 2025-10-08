@@ -27,6 +27,7 @@ runBtn.addEventListener('click', () => {
         convertToWav: document.getElementById('convert-to-wav').checked,
         deleteSourceFiles: document.getElementById('delete-source-files').checked,
         normalizeWav: document.getElementById('normalize-wav').checked,
+        useBackups: document.getElementById('use-backups').checked,
         updateLnk: document.getElementById('update-lnk').checked,
         directory: selectedDirElem.innerText
     };

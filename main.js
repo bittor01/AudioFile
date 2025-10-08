@@ -73,7 +73,7 @@ ipcMain.handle('select-dir', async () => {
 });
 
 ipcMain.on('run-tools', async (event, options) => {
-    const { directory, convertToWav, deleteSourceFiles, normalizeWav, updateLnk } = options;
+    const { directory, convertToWav, deleteSourceFiles, normalizeWav, useBackups, updateLnk } = options;
     const sendProgress = (data) => win.webContents.send('progress-update', data);
     const sendFinished = () => win.webContents.send('processing-finished');
 
@@ -100,7 +100,7 @@ ipcMain.on('run-tools', async (event, options) => {
                 if (cleanedLog.length < logContent.length) fs.writeFileSync(logFilePath, cleanedLog.join('\n') + '\n');
             }
             const files = findFiles(directory, ['.wav']).filter(f => !normalizedFiles.has(f));
-            if (files.length > 0) allTasks.push({ name: 'Normalize .wav volume', files, action: normalizeFile, extra: { logFilePath } });
+            if (files.length > 0) allTasks.push({ name: 'Normalize .wav volume', files, action: normalizeFile, extra: { logFilePath, useBackups } });
         }
         if (updateLnk) {
             const linkFiles = findFiles(directory, ['.lnk']);
@@ -130,17 +130,14 @@ ipcMain.on('run-tools', async (event, options) => {
 
         for (const task of allTasks) {
             tasksStarted++;
-            // --- UPDATE OVERALL PROGRESS AT START OF TASK ---
-            sendProgress({
+            const overallPayload = {
                 overallProgress: (tasksStarted / allTasks.length) * 100,
                 overallCount: tasksStarted,
                 overallTotal: allTasks.length,
                 taskName: task.name,
                 taskTotal: task.files.length,
-                taskProgress: 0,
-                taskCount: 0,
-                taskETR: ''
-            });
+            };
+            sendProgress(overallPayload);
 
             const taskTimes = [];
             let taskFilesStarted = 0;
@@ -148,11 +145,16 @@ ipcMain.on('run-tools', async (event, options) => {
             for (const file of task.files) {
                 taskFilesStarted++;
 
-                // --- UPDATE TASK PROGRESS AT START OF FILE ---
-                sendProgress({
-                    statusMessage: `Starting: ${path.basename(file)}`,
+                const progressPayload = {
+                    ...overallPayload,
                     taskProgress: (taskFilesStarted / task.files.length) * 100,
                     taskCount: taskFilesStarted,
+                };
+
+                sendProgress({
+                    ...progressPayload,
+                    statusMessage: `Starting: ${path.basename(file)}`,
+                    taskETR: '',
                 });
 
                 const fileStart = Date.now();
@@ -164,13 +166,14 @@ ipcMain.on('run-tools', async (event, options) => {
                     const avgTaskTime = taskTimes.reduce((a, b) => a + b, 0) / taskTimes.length;
                     const taskETR = formatETR((task.files.length - taskFilesStarted) * avgTaskTime);
 
-                    // --- SEND COMPLETION STATUS FOR FILE ---
                     sendProgress({
+                        ...progressPayload,
                         statusMessage: `${path.basename(file)}: ${statusMessage}`,
                         taskETR: taskETR,
                     });
                 } catch (error) {
                     sendProgress({
+                        ...progressPayload,
                         statusMessage: `ERROR processing ${path.basename(file)}: ${error.message}`
                     });
                 }
@@ -227,26 +230,41 @@ function convertFileToWav(file, directory, extra) {
 }
 
 function normalizeFile(file, directory, extra) {
-    return new Promise((resolve, reject) => {
-        const { logFilePath } = extra;
-        const backupRoot = path.join(directory, 'normbackup');
-        const relPath = path.relative(directory, path.dirname(file));
-        const backupDir = path.join(backupRoot, relPath);
-        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const { logFilePath, useBackups } = extra;
+    const backupFile = useBackups
+        ? path.join(directory, 'normbackup', path.relative(directory, file))
+        : file + '.tmp_bak';
 
-        const backupFile = path.join(backupDir, path.basename(file));
+    const backupDir = path.dirname(backupFile);
+    if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    try {
         fs.renameSync(file, backupFile);
+    } catch (renameError) {
+        return Promise.reject(renameError);
+    }
 
+    return new Promise((resolve, reject) => {
         const args = ['-i', backupFile, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', file];
         execFile(ffmpegPath, args, (error) => {
             if (error) {
-                fs.renameSync(backupFile, file); // Restore on failure
+                try {
+                    fs.renameSync(backupFile, file); // Restore on failure
+                } catch (restoreError) {
+                     console.error(`CRITICAL: Could not restore backup for ${file}`, restoreError);
+                }
                 reject(error);
             } else {
                 fs.appendFileSync(logFilePath, file + '\n');
                 resolve('Normalized');
             }
         });
+    }).finally(() => {
+        if (!useBackups && fs.existsSync(backupFile)) {
+            fs.unlinkSync(backupFile);
+        }
     });
 }
 
