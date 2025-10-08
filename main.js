@@ -73,7 +73,7 @@ ipcMain.handle('select-dir', async () => {
 });
 
 ipcMain.on('run-tools', async (event, options) => {
-    const { directory, convertToWav, normalizeWav, updateLnk } = options;
+    const { directory, convertToWav, deleteSourceFiles, normalizeWav, updateLnk } = options;
     const sendProgress = (data) => win.webContents.send('progress-update', data);
 
     try {
@@ -88,7 +88,7 @@ ipcMain.on('run-tools', async (event, options) => {
         const tasks = [];
         if (convertToWav) {
             const files = findFiles(directory, ['.mp3', '.ogg']).filter(f => !fs.existsSync(path.join(path.dirname(f), `${path.parse(f).name}.wav`)));
-            if (files.length > 0) tasks.push({ name: 'Convert to .wav', files, action: convertFileToWav });
+            if (files.length > 0) tasks.push({ name: 'Convert to .wav', files, action: convertFileToWav, extra: { deleteSourceFiles } });
         }
         if (normalizeWav) {
             const logFilePath = path.join(directory, '.normalized_files.log');
@@ -172,12 +172,25 @@ function checkFfmpeg() {
     });
 }
 
-function convertFileToWav(file) {
+function convertFileToWav(file, directory, extra) {
+    const { deleteSourceFiles } = extra;
     return new Promise((resolve, reject) => {
         const wavFile = path.join(path.dirname(file), `${path.parse(file).name}.wav`);
         execFile(ffmpegPath, ['-i', file, wavFile], (error) => {
-            if (error) reject(error);
-            else resolve('Converted to .wav');
+            if (error) {
+                reject(error);
+            } else {
+                let message = 'Converted to .wav';
+                if (deleteSourceFiles) {
+                    try {
+                        fs.unlinkSync(file);
+                        message += ' and source file deleted.';
+                    } catch (deleteError) {
+                        message += ` but failed to delete source: ${deleteError.message}`;
+                    }
+                }
+                resolve(message);
+            }
         });
     });
 }

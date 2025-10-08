@@ -20,13 +20,14 @@ selectDirBtn.addEventListener('click', async () => {
 runBtn.addEventListener('click', () => {
     const options = {
         convertToWav: document.getElementById('convert-to-wav').checked,
+        deleteSourceFiles: document.getElementById('delete-source-files').checked,
         normalizeWav: document.getElementById('normalize-wav').checked,
         updateLnk: document.getElementById('update-lnk').checked,
         directory: selectedDirElem.innerText
     };
 
     if (!options.directory) {
-        statusOutput.value = 'Please select a directory first.';
+        statusOutput.textContent = 'Please select a directory first.';
         return;
     }
 
@@ -35,7 +36,7 @@ runBtn.addEventListener('click', () => {
     runBtn.innerText = 'Processing...';
 
     // Reset UI
-    statusOutput.value = '';
+    statusOutput.textContent = '';
     overallProgress.value = 0;
     taskProgress.value = 0;
     overallEtr.innerText = '';
@@ -57,7 +58,7 @@ window.electronAPI.onProgressUpdate((data) => {
 
     if (statusMessage) {
         const timestamp = new Date().toLocaleTimeString();
-        statusOutput.value += `[${timestamp}] ${statusMessage}\n`;
+        statusOutput.textContent += `[${timestamp}] ${statusMessage}\n`;
         // Auto-scroll to the bottom
         statusOutput.scrollTop = statusOutput.scrollHeight;
     }
