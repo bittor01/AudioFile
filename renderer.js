@@ -55,10 +55,10 @@ runBtn.addEventListener('click', () => {
 window.electronAPI.onProgressUpdate((data) => {
     const {
         statusMessage,
-        overallProgress,
+        overallProgress: overallProgressData,
         overallCount: overallCountData,
         overallTotal,
-        taskProgress,
+        taskProgress: taskProgressData,
         taskETR,
         taskCount: taskCountData,
         taskTotal,
@@ -74,13 +74,13 @@ window.electronAPI.onProgressUpdate((data) => {
         statusOutput.textContent = logMessages.join('\n');
     }
 
-    if (overallProgress !== undefined) {
-        overallProgress.value = overallProgress;
-        overallCount.innerText = `Task ${overallCountData} of ${overallTotal}`;
+    if (overallProgressData !== undefined && overallTotal !== undefined) {
+        overallProgress.value = overallProgressData;
+        overallCount.innerText = `Task ${overallCountData || 0} of ${overallTotal}`;
     }
-    if (taskProgress !== undefined) {
-        taskProgress.value = taskProgress;
-        taskCount.innerText = `${taskCountData} of ${taskTotal}`;
+    if (taskProgressData !== undefined && taskTotal !== undefined) {
+        taskProgress.value = taskProgressData;
+        taskCount.innerText = `${taskCountData || 0} of ${taskTotal}`;
     }
     if (taskETR !== undefined) {
         taskEtr.innerText = taskETR;
@@ -89,10 +89,10 @@ window.electronAPI.onProgressUpdate((data) => {
         const overallText = overallCount.innerText ? `(${overallCount.innerText})` : '';
         taskProgressLabel.innerText = `Task Progress: ${taskName} ${overallText}`;
     }
+});
 
-    if (overallProgress >= 100 || statusMessage?.includes('complete') || statusMessage?.includes('Aborting') || statusMessage?.includes('No files to process')) {
-        runBtn.disabled = false;
-        runBtn.innerText = 'Run';
-        taskProgressLabel.innerText = 'Task Progress: Done';
-    }
+window.electronAPI.onProcessingFinished(() => {
+    runBtn.disabled = false;
+    runBtn.innerText = 'Run';
+    taskProgressLabel.innerText = 'Task Progress: Done';
 });
