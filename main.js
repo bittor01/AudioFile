@@ -13,7 +13,6 @@ function createWindow() {
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      // Enforce security best practices
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -24,57 +23,138 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
+
+// --- Helper Functions ---
+
+function formatETR(ms) {
+    if (!ms || ms <= 0 || !isFinite(ms)) return '';
+    const totalSeconds = Math.round(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    let parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+    return `ETR: ${parts.join(' ')}`;
+}
+
+function findFiles(dir, extensions) {
+    let files = [];
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+            if (item.name !== 'normbackup') {
+                files = files.concat(findFiles(fullPath, extensions));
+            }
+        } else if (extensions.includes(path.extname(item.name).toLowerCase())) {
+            files.push(fullPath);
+        }
+    }
+    return files;
+}
 
 // --- IPC Handlers ---
 
 ipcMain.handle('select-dir', async () => {
-  const result = await dialog.showOpenDialog(win, {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     properties: ['openDirectory']
   });
-  return result.canceled ? null : result.filePaths[0];
+  return canceled ? null : filePaths[0];
 });
 
 ipcMain.on('run-tools', async (event, options) => {
     const { directory, convertToWav, normalizeWav, updateLnk } = options;
-    const sendStatus = (message) => win.webContents.send('status-update', message);
+    const sendProgress = (data) => win.webContents.send('progress-update', data);
 
     try {
-        sendStatus('Checking for FFmpeg...');
         const ffmpegAvailable = await checkFfmpeg();
         if (!ffmpegAvailable) {
-            sendStatus('FFmpeg check failed. Aborting.');
+            sendProgress({ statusMessage: 'FFmpeg check failed. Aborting.' });
             return;
         }
-        sendStatus('FFmpeg found.');
 
+        sendProgress({ statusMessage: 'Planning tasks...', overallProgress: 0, taskProgress: 0, taskName: 'Planning' });
+
+        const tasks = [];
         if (convertToWav) {
-            await runConvertToWav(directory, sendStatus);
+            const files = findFiles(directory, ['.mp3', '.ogg']).filter(f => !fs.existsSync(path.join(path.dirname(f), `${path.parse(f).name}.wav`)));
+            if (files.length > 0) tasks.push({ name: 'Convert to .wav', files, action: convertFileToWav });
         }
         if (normalizeWav) {
-            await runNormalizeWav(directory, sendStatus);
+            const logFilePath = path.join(directory, '.normalized_files.log');
+            let normalizedFiles = new Set();
+            if (fs.existsSync(logFilePath)) {
+                const logContent = fs.readFileSync(logFilePath, 'utf-8').split('\n').filter(Boolean);
+                const cleanedLog = logContent.filter(fs.existsSync);
+                cleanedLog.forEach(f => normalizedFiles.add(f));
+                if (cleanedLog.length < logContent.length) fs.writeFileSync(logFilePath, cleanedLog.join('\n') + '\n');
+            }
+            const files = findFiles(directory, ['.wav']).filter(f => !normalizedFiles.has(f));
+            if (files.length > 0) tasks.push({ name: 'Normalize .wav volume', files, action: normalizeFile, extra: { logFilePath } });
         }
         if (updateLnk) {
-            await runUpdateLnk(directory, sendStatus);
+            const files = findFiles(directory, ['.lnk']);
+            if (files.length > 0) tasks.push({ name: 'Update .lnk shortcuts', files: [directory], action: runUpdateLnkScript });
         }
-        sendStatus('All tasks complete.');
+
+        const totalFilesToProcess = tasks.reduce((sum, task) => sum + task.files.length, 0);
+        if (totalFilesToProcess === 0) {
+            sendProgress({ statusMessage: 'No files to process.' });
+            return;
+        }
+
+        let overallFilesProcessed = 0;
+        const overallStart = Date.now();
+        const overallTimes = [];
+
+        for (const task of tasks) {
+            const taskStart = Date.now();
+            const taskTimes = [];
+            let taskFilesProcessed = 0;
+
+            for (const file of task.files) {
+                const fileStart = Date.now();
+                try {
+                    const statusMessage = await task.action(file, directory, task.extra);
+                    const fileEnd = Date.now();
+                    taskTimes.push(fileEnd - fileStart);
+                    overallTimes.push(fileEnd - fileStart);
+                    taskFilesProcessed++;
+                    overallFilesProcessed++;
+
+                    const avgTaskTime = taskTimes.reduce((a, b) => a + b, 0) / taskTimes.length;
+                    const taskETR = formatETR((task.files.length - taskFilesProcessed) * avgTaskTime);
+                    const avgOverallTime = overallTimes.reduce((a, b) => a + b, 0) / overallTimes.length;
+                    const overallETR = formatETR((totalFilesToProcess - overallFilesProcessed) * avgOverallTime);
+
+                    sendProgress({
+                        statusMessage: `${path.basename(file)}: ${statusMessage}`,
+                        overallProgress: (overallFilesProcessed / totalFilesToProcess) * 100,
+                        overallETR,
+                        taskProgress: (taskFilesProcessed / task.files.length) * 100,
+                        taskETR,
+                        taskName: task.name
+                    });
+                } catch (error) {
+                    sendProgress({ statusMessage: `ERROR processing ${path.basename(file)}: ${error.message}` });
+                }
+            }
+        }
+        sendProgress({ statusMessage: 'All tasks complete.', overallProgress: 100, taskProgress: 100, taskName: 'Done' });
     } catch (error) {
-        sendStatus(`Error: ${error.message}`);
+        sendProgress({ statusMessage: `A critical error occurred: ${error.message}` });
     }
 });
-
 
 // --- Tool Implementations ---
 
@@ -82,10 +162,7 @@ function checkFfmpeg() {
     return new Promise((resolve) => {
         exec(`"${ffmpegPath}" -version`, (error) => {
             if (error) {
-                dialog.showErrorBox(
-                    'FFmpeg Not Found',
-                    'FFmpeg is required for this application to work. Please install it from the official website.'
-                );
+                dialog.showErrorBox('FFmpeg Not Found', 'FFmpeg is required for this application to work. Please install it from the official website.');
                 shell.openExternal('https://ffmpeg.org/download.html');
                 resolve(false);
             } else {
@@ -95,101 +172,53 @@ function checkFfmpeg() {
     });
 }
 
-async function runConvertToWav(directory, sendStatus) {
-    sendStatus('Starting: Convert to .wav');
-    const files = findFiles(directory, ['.mp3', '.ogg']);
-    for (const file of files) {
+function convertFileToWav(file) {
+    return new Promise((resolve, reject) => {
         const wavFile = path.join(path.dirname(file), `${path.parse(file).name}.wav`);
-        if (!fs.existsSync(wavFile)) {
-            sendStatus(`Converting ${file} to .wav`);
-            await new Promise((resolve, reject) => {
-                execFile(ffmpegPath, ['-i', file, wavFile], (error) => {
-                    if (error) reject(error);
-                    else resolve();
-                });
-            });
-        } else {
-            sendStatus(`Skipping ${wavFile} (already exists)`);
-        }
-    }
-    sendStatus('Finished: Convert to .wav');
+        execFile(ffmpegPath, ['-i', file, wavFile], (error) => {
+            if (error) reject(error);
+            else resolve('Converted to .wav');
+        });
+    });
 }
 
-async function runNormalizeWav(directory, sendStatus) {
-    sendStatus('Starting: Normalize .wav volume');
-    const backupRoot = path.join(directory, 'normbackup');
-    if (!fs.existsSync(backupRoot)) {
-        fs.mkdirSync(backupRoot, { recursive: true });
-    }
-
-    const files = findFiles(directory, ['.wav']);
-    for (const file of files) {
-        if (path.dirname(file).includes(backupRoot)) continue;
-
-        sendStatus(`Processing ${file}`);
+function normalizeFile(file, directory, extra) {
+    return new Promise((resolve, reject) => {
+        const { logFilePath } = extra;
+        const backupRoot = path.join(directory, 'normbackup');
         const relPath = path.relative(directory, path.dirname(file));
         const backupDir = path.join(backupRoot, relPath);
-        if (!fs.existsSync(backupDir)) {
-            fs.mkdirSync(backupDir, { recursive: true });
-        }
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
         const backupFile = path.join(backupDir, path.basename(file));
         fs.renameSync(file, backupFile);
 
-        await new Promise((resolve, reject) => {
-            const args = ['-i', backupFile, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', file];
-            execFile(ffmpegPath, args, (error) => {
-                if (error) {
-                    fs.renameSync(backupFile, file);
-                    reject(error);
-                } else {
-                    resolve();
-                }
-            });
-        });
-    }
-    sendStatus('Finished: Normalize .wav volume');
-}
-
-async function runUpdateLnk(directory, sendStatus) {
-    sendStatus('Starting: Update .lnk shortcuts');
-    const scriptPath = path.join(__dirname, 'example', 'linktowav.ps1');
-
-    if (!fs.existsSync(scriptPath)) {
-        throw new Error(`PowerShell script not found at ${scriptPath}. Ensure it is included in the build.`);
-    }
-
-    await new Promise((resolve, reject) => {
-        const ps = exec(`powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}" -Path "${directory}"`);
-
-        ps.stdout.on('data', (data) => {
-            sendStatus(data.toString());
-        });
-        ps.stderr.on('data', (data) => {
-            sendStatus(`ERROR: ${data.toString()}`);
-        });
-        ps.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`PowerShell script exited with code ${code}`));
+        const args = ['-i', backupFile, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', file];
+        execFile(ffmpegPath, args, (error) => {
+            if (error) {
+                fs.renameSync(backupFile, file); // Restore on failure
+                reject(error);
             } else {
-                resolve();
+                fs.appendFileSync(logFilePath, file + '\n');
+                resolve('Normalized');
             }
         });
     });
-    sendStatus('Finished: Update .lnk shortcuts');
 }
 
-function findFiles(dir, extensions) {
-    let files = [];
-    const items = fs.readdirSync(dir, { withFileTypes: true });
-    for (const item of items) {
-        const fullPath = path.join(dir, item.name);
-        if (item.isDirectory()) {
-            if (item.name === 'normbackup' && path.resolve(dir) === path.resolve(path.dirname(fullPath), '..')) continue;
-            files = files.concat(findFiles(fullPath, extensions));
-        } else if (extensions.includes(path.extname(item.name).toLowerCase())) {
-            files.push(fullPath);
+function runUpdateLnkScript(directory) {
+    return new Promise((resolve, reject) => {
+        const scriptPath = path.join(__dirname, 'example', 'linktowav.ps1');
+        if (!fs.existsSync(scriptPath)) {
+            return reject(new Error('PowerShell script not found.'));
         }
-    }
-    return files;
+        const ps = exec(`powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}" -Path "${directory}"`);
+        let output = '';
+        ps.stdout.on('data', (data) => { output += data; });
+        ps.stderr.on('data', (data) => { output += data; });
+        ps.on('close', (code) => {
+            if (code !== 0) reject(new Error(`PowerShell script failed: ${output}`));
+            else resolve('Shortcut update script finished.');
+        });
+    });
 }

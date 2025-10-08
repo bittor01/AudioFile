@@ -42,4 +42,51 @@ button:hover {
 #status-output {
     white-space: pre-wrap;
     word-wrap: break-word;
+    height: 200px;
+    overflow-y: scroll;
+    background-color: #111;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+#progress-section {
+    margin-bottom: 20px;
+}
+
+.progress-container {
+    margin-bottom: 10px;
+}
+
+.progress-container label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+progress {
+    width: 100%;
+    height: 20px;
+    border-radius: 5px;
+    border: 1px solid #555;
+}
+
+progress::-webkit-progress-bar {
+    background-color: #333;
+    border-radius: 5px;
+}
+
+progress::-webkit-progress-value {
+    background-color: #4caf50;
+    border-radius: 5px;
+    transition: width 0.1s linear;
+}
+
+progress::-moz-progress-bar {
+    background-color: #4caf50;
+    border-radius: 5px;
+}
+
+.progress-container span {
+    margin-left: 10px;
+    font-style: italic;
+    color: #aaa;
 }
