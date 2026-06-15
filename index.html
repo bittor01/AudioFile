@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Audio File Tools</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Audio File Tools</h1>
+    <div id="content">
+        <p>Select a folder to process:</p>
+        <p id="selected-dir"></p>
+
+        <div id="main-controls">
+            <button id="select-dir">Select Directory</button>
+            <button id="run-tools">Run</button>
+            <div id="options">
+                <label><input type="checkbox" id="convert-to-wav" checked> Convert to .wav</label>
+                <label class="sub-option"><input type="checkbox" id="delete-source-files" checked> Delete source files after conversion</label>
+                <label><input type="checkbox" id="normalize-wav" checked> Normalize .wav volume</label>
+                <label class="sub-option"><input type="checkbox" id="use-backups" checked> Use permanent backups</label>
+                <label><input type="checkbox" id="update-lnk"> Update .lnk shortcuts</label>
+            </div>
+        </div>
+
+        <div id="status">
+            <h2>Progress</h2>
+            <div id="progress-section">
+                <div class="progress-container">
+                    <label for="overall-progress">Overall Progress:</label>
+                    <div class="progress-bar-wrapper">
+                        <progress id="overall-progress" value="0" max="100"></progress>
+                        <span id="overall-count"></span>
+                    </div>
+                </div>
+                <div class="progress-container">
+                    <label for="task-progress">Task Progress:</label>
+                    <div class="progress-bar-wrapper">
+                        <progress id="task-progress" value="0" max="100"></progress>
+                        <span id="task-count"></span>
+                    </div>
+                    <span id="task-etr"></span>
+                </div>
+            </div>
+            <h2>Status Log</h2>
+            <pre id="status-output"></pre>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>
