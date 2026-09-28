@@ -56,6 +56,16 @@ button:hover {
     margin-bottom: 0;
 }
 
+#output-format {
+    background-color: #222222;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 2px 5px;
+    margin-left: 4px;
+    font-size: 14px;
+}
+
 #status {
     margin-top: 20px;
     padding: 10px;

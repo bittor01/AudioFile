@@ -73,7 +73,16 @@ ipcMain.handle('select-dir', async () => {
 });
 
 ipcMain.on('run-tools', async (event, options) => {
-    const { directory, convertToWav, deleteSourceFiles, normalizeWav, useBackups, updateLnk } = options;
+    const {
+        directory,
+        convertToTarget,
+        outputFormat = '.mp3',
+        deleteSourceFiles,
+        normalizeAudio,
+        useBackups,
+        updateLnk
+    } = options;
+    const targetExt = outputFormat.startsWith('.') ? outputFormat.toLowerCase() : '.' + outputFormat.toLowerCase();
     const sendProgress = (data) => win.webContents.send('progress-update', data);
     const sendFinished = () => win.webContents.send('processing-finished');
 
@@ -84,13 +93,29 @@ ipcMain.on('run-tools', async (event, options) => {
             return;
         }
 
+        const ALL_AUDIO_EXTS = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma'];
+
         // --- Define All Potential Tasks ---
         const allTasks = [];
-        if (convertToWav) {
-            const files = findFiles(directory, ['.mp3', '.ogg']).filter(f => !fs.existsSync(path.join(path.dirname(f), `${path.parse(f).name}.wav`)));
-            if (files.length > 0) allTasks.push({ name: 'Convert to .wav', files, action: convertFileToWav, extra: { deleteSourceFiles } });
+        if (convertToTarget) {
+            // Find all audio files that are NOT in target format and whose target file doesn't already exist
+            const candidates = findFiles(directory, ALL_AUDIO_EXTS.filter(e => e !== targetExt));
+            const filesToConvert = candidates.filter(f => {
+                const targetFilePath = path.join(path.dirname(f), `${path.parse(f).name}${targetExt}`);
+                return !fs.existsSync(targetFilePath);
+            });
+
+            if (filesToConvert.length > 0) {
+                allTasks.push({
+                    name: `Convert to ${targetExt}`,
+                    files: filesToConvert,
+                    action: convertFileToTarget,
+                    extra: { targetExt, deleteSourceFiles }
+                });
+            }
         }
-        if (normalizeWav) {
+
+        if (normalizeAudio) {
             const logFilePath = path.join(directory, '.normalized_files.log');
             let normalizedFiles = new Set();
             if (fs.existsSync(logFilePath)) {
@@ -99,13 +124,26 @@ ipcMain.on('run-tools', async (event, options) => {
                 cleanedLog.forEach(f => normalizedFiles.add(f));
                 if (cleanedLog.length < logContent.length) fs.writeFileSync(logFilePath, cleanedLog.join('\n') + '\n');
             }
-            const files = findFiles(directory, ['.wav']).filter(f => !normalizedFiles.has(f));
-            if (files.length > 0) allTasks.push({ name: 'Normalize .wav volume', files, action: normalizeFile, extra: { logFilePath, useBackups } });
+            const files = findFiles(directory, ALL_AUDIO_EXTS).filter(f => !normalizedFiles.has(f));
+            if (files.length > 0) {
+                allTasks.push({
+                    name: 'Normalize audio volume',
+                    files,
+                    action: normalizeFile,
+                    extra: { logFilePath, useBackups }
+                });
+            }
         }
+
         if (updateLnk) {
             const linkFiles = findFiles(directory, ['.lnk']);
             if (linkFiles.length > 0) {
-                 allTasks.push({ name: 'Update .lnk shortcuts', files: [directory], action: runUpdateLnkScript });
+                 allTasks.push({
+                     name: 'Update .lnk shortcuts',
+                     files: [directory],
+                     action: runUpdateLnkScript,
+                     extra: { targetExt }
+                 });
             }
         }
 
@@ -206,15 +244,15 @@ function checkFfmpeg() {
     });
 }
 
-function convertFileToWav(file, directory, extra) {
-    const { deleteSourceFiles } = extra;
+function convertFileToTarget(file, directory, extra) {
+    const { targetExt, deleteSourceFiles } = extra;
     return new Promise((resolve, reject) => {
-        const wavFile = path.join(path.dirname(file), `${path.parse(file).name}.wav`);
-        execFile(ffmpegPath, ['-i', file, wavFile], (error) => {
+        const targetFile = path.join(path.dirname(file), `${path.parse(file).name}${targetExt}`);
+        execFile(ffmpegPath, ['-i', file, targetFile], (error) => {
             if (error) {
                 reject(error);
             } else {
-                let message = 'Converted to .wav';
+                let message = `Converted to ${targetExt}`;
                 if (deleteSourceFiles) {
                     try {
                         fs.unlinkSync(file);
@@ -268,13 +306,14 @@ function normalizeFile(file, directory, extra) {
     });
 }
 
-function runUpdateLnkScript(directory) {
+function runUpdateLnkScript(directory, _, extra) {
+    const { targetExt = '.mp3' } = extra || {};
     return new Promise((resolve, reject) => {
         const scriptPath = path.join(__dirname, 'example', 'linktowav.ps1');
         if (!fs.existsSync(scriptPath)) {
             return reject(new Error('PowerShell script not found.'));
         }
-        const ps = exec(`powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}" -Path "${directory}"`);
+        const ps = exec(`powershell.exe -ExecutionPolicy Bypass -File "${scriptPath}" -Path "${directory}" -TargetExt "${targetExt}"`);
         let output = '';
         ps.stdout.on('data', (data) => { output += data; });
         ps.stderr.on('data', (data) => { output += data; });
