@@ -15,9 +15,17 @@
             <button id="select-dir">Select Directory</button>
             <button id="run-tools">Run</button>
             <div id="options">
-                <label><input type="checkbox" id="convert-to-wav" checked> Convert to .wav</label>
+                <label>
+                    <input type="checkbox" id="convert-to-target" checked> Convert audio files to
+                    <select id="output-format">
+                        <option value=".mp3" selected>.mp3</option>
+                        <option value=".wav">.wav</option>
+                        <option value=".ogg">.ogg</option>
+                        <option value=".flac">.flac</option>
+                    </select>
+                </label>
                 <label class="sub-option"><input type="checkbox" id="delete-source-files" checked> Delete source files after conversion</label>
-                <label><input type="checkbox" id="normalize-wav" checked> Normalize .wav volume</label>
+                <label><input type="checkbox" id="normalize-audio" checked> Normalize audio volume</label>
                 <label class="sub-option"><input type="checkbox" id="use-backups" checked> Use permanent backups</label>
                 <label><input type="checkbox" id="update-lnk"> Update .lnk shortcuts</label>
             </div>

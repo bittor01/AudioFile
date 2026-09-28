@@ -15,6 +15,63 @@ const taskProgressLabel = document.querySelector('label[for="task-progress"]');
 let logMessages = [];
 const MAX_LOG_LINES = 8;
 
+// Local storage key for saving UI settings
+const SETTINGS_STORAGE_KEY = 'audioFileToolsSettings';
+
+function loadSettings() {
+    try {
+        const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (saved) {
+            const settings = JSON.parse(saved);
+            if (settings.convertToTarget !== undefined) {
+                document.getElementById('convert-to-target').checked = settings.convertToTarget;
+            }
+            if (settings.outputFormat !== undefined) {
+                document.getElementById('output-format').value = settings.outputFormat;
+            }
+            if (settings.deleteSourceFiles !== undefined) {
+                document.getElementById('delete-source-files').checked = settings.deleteSourceFiles;
+            }
+            if (settings.normalizeAudio !== undefined) {
+                document.getElementById('normalize-audio').checked = settings.normalizeAudio;
+            }
+            if (settings.useBackups !== undefined) {
+                document.getElementById('use-backups').checked = settings.useBackups;
+            }
+            if (settings.updateLnk !== undefined) {
+                document.getElementById('update-lnk').checked = settings.updateLnk;
+            }
+        }
+    } catch (e) {
+        console.error('Error loading settings from localStorage:', e);
+    }
+}
+
+function saveSettings() {
+    try {
+        const settings = {
+            convertToTarget: document.getElementById('convert-to-target').checked,
+            outputFormat: document.getElementById('output-format').value,
+            deleteSourceFiles: document.getElementById('delete-source-files').checked,
+            normalizeAudio: document.getElementById('normalize-audio').checked,
+            useBackups: document.getElementById('use-backups').checked,
+            updateLnk: document.getElementById('update-lnk').checked,
+        };
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+        console.error('Error saving settings to localStorage:', e);
+    }
+}
+
+// Restore saved settings on initial load and attach listeners
+loadSettings();
+['convert-to-target', 'output-format', 'delete-source-files', 'normalize-audio', 'use-backups', 'update-lnk'].forEach(id => {
+    const elem = document.getElementById(id);
+    if (elem) {
+        elem.addEventListener('change', saveSettings);
+    }
+});
+
 selectDirBtn.addEventListener('click', async () => {
     const path = await window.electronAPI.selectDir();
     if (path) {
@@ -23,10 +80,12 @@ selectDirBtn.addEventListener('click', async () => {
 });
 
 runBtn.addEventListener('click', () => {
+    saveSettings();
     const options = {
-        convertToWav: document.getElementById('convert-to-wav').checked,
+        convertToTarget: document.getElementById('convert-to-target').checked,
+        outputFormat: document.getElementById('output-format').value,
         deleteSourceFiles: document.getElementById('delete-source-files').checked,
-        normalizeWav: document.getElementById('normalize-wav').checked,
+        normalizeAudio: document.getElementById('normalize-audio').checked,
         useBackups: document.getElementById('use-backups').checked,
         updateLnk: document.getElementById('update-lnk').checked,
         directory: selectedDirElem.innerText
